@@ -172,16 +172,20 @@ export default {
             return jsonResponse({ error: 'Invalid or oversized image' }, 400);
         }
 
-        const prompt = `
-Inspect this image for a German bottle or can deposit marking.
+//         const prompt = `
+// Inspect this image for a German bottle or can deposit marking.
 
-Classify it as Einweg only if a DPG one-way deposit mark or explicit Einweg text is clearly visible.
-Classify it as Mehrweg only if explicit Mehrweg text or a clearly identifiable reusable-container mark is visible.
-Do not guess based on the brand, product, container material, or shape.
-If the marking is missing, blurry, obscured, or ambiguous, classify it as Unbekannt.
-In evidence, quote or briefly describe only the visible mark. Never invent evidence.
-Confidence describes how clearly the mark can be read, not the probability that a retailer accepts the container.
-Return the evidence in German.
+// Classify it as Einweg only if a DPG one-way deposit mark or explicit Einweg text is clearly visible.
+// Classify it as Mehrweg only if explicit Mehrweg text or a clearly identifiable reusable-container mark is visible.
+// Do not guess based on the brand, product, container material, or shape.
+// If the marking is missing, blurry, obscured, or ambiguous, classify it as Unbekannt.
+// In evidence, quote or briefly describe only the visible mark. Never invent evidence.
+// Confidence describes how clearly the mark can be read, not the probability that a retailer accepts the container.
+// Return the evidence in German.
+// `;
+        const prompt = `
+Return a JSON classification with classification "Unbekannt",
+evidence "Text connection test", and confidence "low".
 `;
 
         const schema = {
@@ -214,15 +218,16 @@ Return the evidence in German.
                     body: JSON.stringify({
                         contents: [
                             {
-                                parts: [
-                                    { text: prompt },
-                                    {
-                                        inlineData: {
-                                            mimeType,
-                                            data: imageBase64,
-                                        },
-                                    },
-                                ],
+                                // parts: [
+                                //     { text: prompt },
+                                //     {
+                                //         inlineData: {
+                                //             mimeType,
+                                //             data: imageBase64,
+                                //         },
+                                //     },
+                                // ],
+                                parts: [{ text: prompt }],
                             },
                         ],
                         generationConfig: {
@@ -235,7 +240,7 @@ Return the evidence in German.
                             },
                         },
                     }),
-                    signal: AbortSignal.timeout(120_000),
+                    signal: AbortSignal.timeout(20_000),
                 },
             );
         }
