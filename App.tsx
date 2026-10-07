@@ -1,20 +1,130 @@
+import { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
 
 export default function App() {
+  const [message, setMessage] = useState('');
+
   return (
-    <View style={styles.container}>
-      <Text>Open up App.tsx to start working on your app!</Text>
-      <StatusBar style="auto" />
+    <View style={styles.screen}>
+      <StatusBar style="dark" />
+
+      <View style={styles.content}>
+        <Text style={styles.brand}>Pfandfach</Text>
+
+        <View style={styles.intro}>
+          <Text style={styles.title}>Wo gehört diese Flasche hin?</Text>
+          <Text style={styles.subtitle}>Scanne dein Pfand, bevor du es in die richtige Tasche legst.</Text>
+        </View>
+
+        <View style={styles.actions}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push('/camera')}
+            style={({ pressed }) => [
+              styles.scanButton,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Text style={styles.scanTitle}>Flasche scannen</Text>
+            <Text style={styles.scanHint}>Mit der Kamera erfassen</Text>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setMessage('Die Fotoauswahl richten wir als Nächstes ein.')}
+            style={({ pressed }) => [
+              styles.uploadButton,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Text style={styles.uploadTitle}>Foto hochladen</Text>
+            <Text style={styles.uploadHint}>Bild aus der Galerie wählen</Text>
+          </Pressable>
+        </View>
+
+        {message ? <Text style={styles.message}>{message}</Text> : null}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  screen: {
     flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
+    backgroundColor: '#F1F4EC',
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 22,
+    paddingTop: 54,
+  },
+  brand: {
+    color: '#173B32',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  intro: {
+    marginTop: 42,
+    marginBottom: 24,
+  },
+  title: {
+    color: '#173B32',
+    fontSize: 32,
+    fontWeight: '800',
+    lineHeight: 38,
+  },
+  subtitle: {
+    color: '#5D6C64',
+    fontSize: 16,
+    marginTop: 10,
+  },
+  actions: {
+    gap: 12,
+  },
+  scanButton: {
+    minHeight: 88,
     justifyContent: 'center',
+    paddingHorizontal: 20,
+    backgroundColor: '#173B32',
+    borderRadius: 8,
+  },
+  scanTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  scanHint: {
+    color: '#D7E7D2',
+    fontSize: 14,
+    marginTop: 4,
+  },
+  uploadButton: {
+    minHeight: 76,
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    backgroundColor: '#FFFFFF',
+    borderColor: '#D8DED5',
+    borderWidth: 1,
+    borderRadius: 8,
+  },
+  uploadTitle: {
+    color: '#173B32',
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  uploadHint: {
+    color: '#66736C',
+    fontSize: 14,
+    marginTop: 4,
+  },
+  pressed: {
+    opacity: 0.72,
+  },
+  message: {
+    color: '#31594B',
+    fontSize: 14,
+    marginTop: 14,
   },
 });
