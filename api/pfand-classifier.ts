@@ -5,8 +5,28 @@ const CORS_HEADERS = {
 };
 
 const MAX_IMAGE_BASE64_LENGTH = 3_250_000;
+const ALLOWED_MIME_TYPES: string[] = ['image/jpeg', 'image/png', 'image/webp'];
 
-function jsonResponse(body, status = 200) {
+type PfandClassification = 'Einweg' | 'Mehrweg' | 'Unbekannt';
+type Confidence = 'high' | 'medium' | 'low';
+
+type ClassificationResult = {
+    classification: PfandClassification;
+    evidence: string;
+    confidence: Confidence;
+};
+
+type GeminiResponse = {
+    candidates?: Array<{
+        content?: {
+            parts?: Array<{
+                text?: unknown;
+            }>;
+        };
+    }>;
+};
+
+function jsonResponse(body: unknown, status = 200): Response {
     return new Response(JSON.stringify(body), {
         status,
         headers: {
@@ -16,11 +36,13 @@ function jsonResponse(body, status = 200) {
     });
 }
 
-function isRecord(value) {
+function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null;
 }
 
-function unknownResult(evidence = 'Keine eindeutige Markierung erkannt.') {
+function unknownResult(
+    evidence = 'Keine eindeutige Markierung erkannt.',
+): ClassificationResult {
     return {
         classification: 'Unbekannt',
         evidence,
@@ -28,7 +50,15 @@ function unknownResult(evidence = 'Keine eindeutige Markierung erkannt.') {
     };
 }
 
-function validateResult(value) {
+function isPfandClassification(value: unknown): value is PfandClassification {
+    return value === 'Einweg' || value === 'Mehrweg' || value === 'Unbekannt';
+}
+
+function isConfidence(value: unknown): value is Confidence {
+    return value === 'high' || value === 'medium' || value === 'low';
+}
+
+function validateResult(value: unknown): ClassificationResult {
     if (!isRecord(value)) {
         return unknownResult();
     }
@@ -38,17 +68,11 @@ function validateResult(value) {
             ? value.evidence.trim().slice(0, 240)
             : '';
 
-    const validClassification =
-        value.classification === 'Einweg' ||
-        value.classification === 'Mehrweg' ||
-        value.classification === 'Unbekannt';
-
-    const validConfidence =
-        value.confidence === 'high' ||
-        value.confidence === 'medium' ||
-        value.confidence === 'low';
-
-    if (!validClassification || !validConfidence || !evidence) {
+    if (
+        !isPfandClassification(value.classification) ||
+        !isConfidence(value.confidence) ||
+        !evidence
+    ) {
         return unknownResult();
     }
 
@@ -63,8 +87,42 @@ function validateResult(value) {
     };
 }
 
+function getGeminiApiKey(): string | undefined {
+    const runtime = globalThis as typeof globalThis & {
+        process?: {
+            env?: Record<string, string | undefined>;
+        };
+    };
+
+    return runtime.process?.env?.GEMINI_API_KEY;
+}
+
+function getGeminiResponseText(value: unknown): string | null {
+    if (!isRecord(value) || !Array.isArray(value.candidates)) {
+        return null;
+    }
+
+    const candidate = value.candidates[0];
+    if (!isRecord(candidate) || !isRecord(candidate.content)) {
+        return null;
+    }
+
+    const parts = candidate.content.parts;
+    if (!Array.isArray(parts)) {
+        return null;
+    }
+
+    const text = parts
+        .filter(isRecord)
+        .map((part) => (typeof part.text === 'string' ? part.text : ''))
+        .join('')
+        .trim();
+
+    return text || null;
+}
+
 export default {
-    async fetch(request) {
+    async fetch(request: Request): Promise<Response> {
         if (request.method === 'OPTIONS') {
             return new Response(null, { headers: CORS_HEADERS });
         }
@@ -73,7 +131,7 @@ export default {
             return jsonResponse({ error: 'Method not allowed' }, 405);
         }
 
-        const apiKey = process.env.GEMINI_API_KEY;
+        const apiKey = getGeminiApiKey();
 
         if (!apiKey) {
             return jsonResponse({ error: 'Gemini key is not configured' }, 500);
@@ -84,23 +142,31 @@ export default {
             return jsonResponse({ error: 'Image is too large' }, 413);
         }
 
-        let input;
+        let input: unknown;
         try {
             input = await request.json();
         } catch {
             return jsonResponse({ error: 'Invalid JSON body' }, 400);
         }
 
-        const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
+        const imageBase64 =
+            isRecord(input) && typeof input.imageBase64 === 'string'
+                ? input.imageBase64
+                : null;
+
+        const mimeType =
+            isRecord(input) &&
+            typeof input.mimeType === 'string' &&
+            ALLOWED_MIME_TYPES.includes(input.mimeType)
+                ? input.mimeType
+                : null;
 
         if (
-            !isRecord(input) ||
-            typeof input.imageBase64 !== 'string' ||
-            input.imageBase64.length === 0 ||
-            input.imageBase64.length > MAX_IMAGE_BASE64_LENGTH ||
-            input.imageBase64.length % 4 !== 0 ||
-            !/^[A-Za-z0-9+/]+={0,2}$/.test(input.imageBase64) ||
-            !allowedMimeTypes.includes(input.mimeType)
+            !imageBase64 ||
+            imageBase64.length > MAX_IMAGE_BASE64_LENGTH ||
+            imageBase64.length % 4 !== 0 ||
+            !/^[A-Za-z0-9+/]+={0,2}$/.test(imageBase64) ||
+            !mimeType
         ) {
             return jsonResponse({ error: 'Invalid or oversized image' }, 400);
         }
@@ -133,7 +199,7 @@ Return the evidence in German.
             required: ['classification', 'evidence', 'confidence'],
         };
 
-        let geminiResponse;
+        let geminiResponse: Response;
 
         try {
             geminiResponse = await fetch(
@@ -151,8 +217,8 @@ Return the evidence in German.
                                     { text: prompt },
                                     {
                                         inlineData: {
-                                            mimeType: input.mimeType,
-                                            data: input.imageBase64,
+                                            mimeType,
+                                            data: imageBase64,
                                         },
                                     },
                                 ],
@@ -179,27 +245,28 @@ Return the evidence in German.
             return jsonResponse({ error: 'Gemini request failed' }, 502);
         }
 
-        let geminiData;
+        let geminiData: GeminiResponse;
+
         try {
             geminiData = await geminiResponse.json();
         } catch {
             return jsonResponse({ error: 'Invalid Gemini response' }, 502);
         }
 
-        const responseText = geminiData.candidates?.[0]?.content?.parts
-            ?.map((part) => (typeof part.text === 'string' ? part.text : ''))
-            .join('')
-            .trim();
+        const responseText = getGeminiResponseText(geminiData);
 
         if (!responseText) {
             return jsonResponse({ error: 'Gemini returned no result' }, 502);
         }
 
         try {
-            return jsonResponse(validateResult(JSON.parse(responseText)));
+            const parsedResult: unknown = JSON.parse(responseText);
+            return jsonResponse(validateResult(parsedResult));
         } catch {
             return jsonResponse(
-                unknownResult('Die Markierung konnte nicht zuverlässig ausgewertet werden.'),
+                unknownResult(
+                    'Die Markierung konnte nicht zuverlässig ausgewertet werden.',
+                ),
             );
         }
     },
