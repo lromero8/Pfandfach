@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRef, useState } from 'react';
 
 const PFAND_API_URL =
-    'https://pfandfach.vercel.app//api/pfand-classifier';
+    'https://pfandfach.vercel.app/api/pfand-classifier';
 
 type OpenFoodFactsResponse = {
     status: string;
