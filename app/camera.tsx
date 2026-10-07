@@ -2,11 +2,13 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 export default function CameraScreen() {
     const [permission, requestPermission] = useCameraPermissions();
     const [torchEnabled, setTorchEnabled] = useState(false);
+    const [scannedCode, setScannedCode] = useState<string | null>(null);
+    const scannedOnce = useRef(false);
 
     if (!permission) {
         return (
@@ -41,6 +43,14 @@ export default function CameraScreen() {
             <CameraView
                 facing="back"
                 enableTorch={torchEnabled}
+                barcodeScannerSettings={{
+                    barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e'],
+                }}
+                onBarcodeScanned={({ data }) => {
+                    if (scannedOnce.current) return;
+                    scannedOnce.current = true;
+                    setScannedCode(data);
+                }}
                 style={StyleSheet.absoluteFill}
             />
 
@@ -60,7 +70,9 @@ export default function CameraScreen() {
 
                 <View style={styles.guideArea}>
                     <View style={styles.bottleGuide}>
-                        <Text style={styles.guideText}>Flasche mittig halten</Text>
+                        <Text style={styles.guideText}>
+                            {scannedCode ?? 'Flasche mittig halten'}
+                        </Text>
                     </View>
                 </View>
 
@@ -78,9 +90,16 @@ export default function CameraScreen() {
 
                     <Pressable
                         accessibilityRole="button"
-                        accessibilityLabel="Beispielflasche scannen"
-                        onPress={() => router.push('/result')}
-                        style={styles.shutter}
+                        accessibilityLabel="Barcode erneut scannen"
+                        disabled={!scannedCode}
+                        onPress={() => {
+                            scannedOnce.current = false;
+                            setScannedCode(null);
+                        }}
+                        style={[
+                            styles.shutter,
+                            !scannedCode && styles.shutterDisabled,
+                        ]}
                     >
                         <View style={styles.shutterCenter} />
                     </Pressable>
@@ -165,6 +184,9 @@ const styles = StyleSheet.create({
         borderColor: '#FFFFFF',
         borderWidth: 4,
         borderRadius: 38,
+    },
+    shutterDisabled: {
+        opacity: 0.5,
     },
     shutterCenter: {
         width: 56,
