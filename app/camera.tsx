@@ -40,16 +40,26 @@ export default function CameraScreen() {
             const result: OpenFoodFactsResponse = await response.json();
 
             if (result.status !== 'success' || !result.product) {
-                setLookupMessage('Produkt nicht in Open Food Facts gefunden');
+                router.replace({
+                    pathname: '/result',
+                    params: {
+                        barcode,
+                        found: 'false',
+                    },
+                });
                 return;
             }
 
-            const name = result.product.product_name || 'Name unbekannt';
-            const brand = result.product.brands;
-
-            setLookupMessage(brand ? `${name} · ${brand}` : name);
-        }
-        catch {
+            router.replace({
+                pathname: '/result',
+                params: {
+                    barcode,
+                    found: 'true',
+                    productName: result.product.product_name || 'Name unbekannt',
+                    brand: result.product.brands || '',
+                },
+            });
+        } catch {
             setLookupMessage('Lookup fehlgeschlagen. Verbindung prüfen.');
         }
     }
