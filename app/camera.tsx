@@ -4,6 +4,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRef, useState } from 'react';
 
+const PFAND_API_URL =
+    'https://pfandfach.vercel.app//api/pfand-classifier';
+
 type OpenFoodFactsResponse = {
     status: string;
     product?: {
@@ -12,14 +15,51 @@ type OpenFoodFactsResponse = {
     };
 };
 
+type ProductInfo = {
+    found: boolean;
+    name: string;
+    brand: string;
+};
+
+type PfandClassification = 'Einweg' | 'Mehrweg' | 'Unbekannt';
+type Confidence = 'high' | 'medium' | 'low';
+
+type ClassificationResult = {
+    classification: PfandClassification;
+    evidence: string;
+    confidence: Confidence;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null;
+}
+
+function isClassificationResult(value: unknown): value is ClassificationResult {
+    return (
+        isRecord(value) &&
+        (value.classification === 'Einweg' ||
+            value.classification === 'Mehrweg' ||
+            value.classification === 'Unbekannt') &&
+        typeof value.evidence === 'string' &&
+        (value.confidence === 'high' ||
+            value.confidence === 'medium' ||
+            value.confidence === 'low')
+    );
+}
+
 export default function CameraScreen() {
     const [permission, requestPermission] = useCameraPermissions();
     const [torchEnabled, setTorchEnabled] = useState(false);
     const [scannedCode, setScannedCode] = useState<string | null>(null);
     const [lookupMessage, setLookupMessage] = useState<string | null>(null);
+    const [product, setProduct] = useState<ProductInfo | null>(null);
+    const [cameraReady, setCameraReady] = useState(false);
+    const [isBusy, setIsBusy] = useState(false);
+    const cameraRef = useRef<CameraView | null>(null);
     const scannedOnce = useRef(false);
 
     async function lookupProduct(barcode: string) {
+        setIsBusy(true);
         setLookupMessage('Produkt wird gesucht ...');
 
         try {
@@ -34,34 +74,117 @@ export default function CameraScreen() {
             );
 
             if (!response.ok) {
-                throw new Error('Request failed');
+                throw new Error('Product lookup failed');
             }
 
             const result: OpenFoodFactsResponse = await response.json();
 
             if (result.status !== 'success' || !result.product) {
-                router.replace({
-                    pathname: '/result',
-                    params: {
-                        barcode,
-                        found: 'false',
-                    },
+                setProduct({
+                    found: false,
+                    name: 'Produkt nicht gefunden',
+                    brand: '',
                 });
+                setLookupMessage(
+                    'Richte die Kamera auf das Pfandzeichen und tippe auf Foto.',
+                );
                 return;
+            }
+
+            setProduct({
+                found: true,
+                name: result.product.product_name || 'Name unbekannt',
+                brand: result.product.brands || '',
+            });
+            setLookupMessage(
+                'Richte die Kamera auf das Pfandzeichen und tippe auf Foto.',
+            );
+        } catch {
+            setProduct({
+                found: false,
+                name: 'Produktdaten nicht verfügbar',
+                brand: '',
+            });
+            setLookupMessage(
+                'Produktabfrage fehlgeschlagen. Du kannst das Pfandzeichen trotzdem fotografieren.',
+            );
+        } finally {
+            setIsBusy(false);
+        }
+    }
+
+    async function classifyPfandMark() {
+        if (!cameraRef.current || !scannedCode || isBusy || !cameraReady) {
+            return;
+        }
+
+        setIsBusy(true);
+        setLookupMessage('Pfandzeichen wird geprüft ...');
+
+        try {
+            const photo = await cameraRef.current.takePictureAsync({
+                base64: true,
+                quality: 0.5,
+            });
+
+            if (!photo.base64) {
+                throw new Error('Photo data is missing');
+            }
+
+            if (photo.base64.length > 3_250_000) {
+                setLookupMessage(
+                    'Das Foto ist zu groß. Bitte näher an das Pfandzeichen gehen und erneut versuchen.',
+                );
+                return;
+            }
+
+            const response = await fetch(PFAND_API_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    imageBase64: photo.base64,
+                    mimeType: 'image/jpeg',
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error(`Classification request failed: ${response.status}`);
+            }
+
+            const result: unknown = await response.json();
+
+            if (!isClassificationResult(result)) {
+                throw new Error('Invalid classification response');
             }
 
             router.replace({
                 pathname: '/result',
                 params: {
-                    barcode,
-                    found: 'true',
-                    productName: result.product.product_name || 'Name unbekannt',
-                    brand: result.product.brands || '',
+                    barcode: scannedCode,
+                    found: product?.found ? 'true' : 'false',
+                    productName: product?.name || 'Produkt nicht gefunden',
+                    brand: product?.brand || '',
+                    pfandType: result.classification,
+                    evidence: result.evidence,
+                    confidence: result.confidence,
                 },
             });
         } catch {
-            setLookupMessage('Lookup fehlgeschlagen. Verbindung prüfen.');
+            setLookupMessage(
+                'Fotoanalyse fehlgeschlagen. Verbindung prüfen und erneut versuchen.',
+            );
+        } finally {
+            setIsBusy(false);
         }
+    }
+
+    function resetScan() {
+        scannedOnce.current = false;
+        setScannedCode(null);
+        setLookupMessage(null);
+        setProduct(null);
     }
 
     if (!permission) {
@@ -95,8 +218,10 @@ export default function CameraScreen() {
     return (
         <View style={styles.screen}>
             <CameraView
+                ref={cameraRef}
                 facing="back"
                 enableTorch={torchEnabled}
+                onCameraReady={() => setCameraReady(true)}
                 barcodeScannerSettings={{
                     barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e'],
                 }}
@@ -119,15 +244,20 @@ export default function CameraScreen() {
                     >
                         <Text style={styles.headerButtonText}>Schließen</Text>
                     </Pressable>
-                    <Text style={styles.headerTitle}>Flasche scannen</Text>
+                    <Text style={styles.headerTitle}>
+                        {scannedCode ? 'Pfandzeichen prüfen' : 'Flasche scannen'}
+                    </Text>
                     <View style={styles.headerSpacer} />
                 </View>
 
                 <View style={styles.guideArea}>
                     <View style={styles.bottleGuide}>
                         <Text style={styles.guideText}>
-                            {scannedCode ?? 'Flasche mittig halten'}
+                            {scannedCode ?? 'Barcode mittig halten'}
                         </Text>
+                        {product?.name ? (
+                            <Text style={styles.guideText}>{product.name}</Text>
+                        ) : null}
                         {lookupMessage ? (
                             <Text style={styles.guideText}>{lookupMessage}</Text>
                         ) : null}
@@ -141,7 +271,7 @@ export default function CameraScreen() {
                             torchEnabled ? 'Blitz ausschalten' : 'Blitz einschalten'
                         }
                         onPress={() => setTorchEnabled((enabled) => !enabled)}
-                        style={styles.flashButton}
+                        style={styles.sideButton}
                     >
                         <Text style={styles.flashText}>
                             Blitz {torchEnabled ? 'an' : 'aus'}
@@ -150,22 +280,31 @@ export default function CameraScreen() {
 
                     <Pressable
                         accessibilityRole="button"
-                        accessibilityLabel="Barcode erneut scannen"
-                        disabled={!scannedCode}
-                        onPress={() => {
-                            scannedOnce.current = false;
-                            setScannedCode(null);
-                            setLookupMessage(null);
-                        }}
+                        accessibilityLabel="Foto vom Pfandzeichen aufnehmen"
+                        disabled={!scannedCode || !cameraReady || isBusy}
+                        onPress={() => void classifyPfandMark()}
                         style={[
                             styles.shutter,
-                            !scannedCode && styles.shutterDisabled,
+                            (!scannedCode || !cameraReady || isBusy) &&
+                                styles.shutterDisabled,
                         ]}
                     >
-                        <View style={styles.shutterCenter} />
+                        <View style={styles.shutterCenter}>
+                            {scannedCode ? (
+                                <Text style={styles.shutterLabel}>Foto</Text>
+                            ) : null}
+                        </View>
                     </Pressable>
 
-                    <View style={styles.controlSpacer} />
+                    <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Neuen Barcode scannen"
+                        disabled={!scannedCode || isBusy}
+                        onPress={resetScan}
+                        style={styles.sideButton}
+                    >
+                        <Text style={styles.flashText}>Neu</Text>
+                    </Pressable>
                 </View>
             </SafeAreaView>
         </View>
@@ -213,6 +352,8 @@ const styles = StyleSheet.create({
         height: 330,
         alignItems: 'center',
         justifyContent: 'flex-end',
+        gap: 8,
+        paddingHorizontal: 10,
         paddingBottom: 18,
         borderColor: '#FFFFFF',
         borderWidth: 2,
@@ -222,7 +363,6 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 14,
         textAlign: 'center',
-        paddingHorizontal: 8,
     },
     controls: {
         minHeight: 112,
@@ -231,9 +371,11 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingBottom: 12,
     },
-    flashButton: {
-        minWidth: 88,
-        paddingVertical: 12,
+    sideButton: {
+        width: 88,
+        minHeight: 44,
+        justifyContent: 'center',
+        paddingVertical: 10,
     },
     flashText: {
         color: '#FFFFFF',
@@ -254,11 +396,15 @@ const styles = StyleSheet.create({
     shutterCenter: {
         width: 56,
         height: 56,
+        alignItems: 'center',
+        justifyContent: 'center',
         backgroundColor: '#FFFFFF',
         borderRadius: 28,
     },
-    controlSpacer: {
-        width: 88,
+    shutterLabel: {
+        color: '#173B32',
+        fontSize: 12,
+        fontWeight: '700',
     },
     permissionScreen: {
         flex: 1,

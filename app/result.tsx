@@ -3,12 +3,30 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+function confidenceLabel(confidence?: string) {
+    if (confidence === 'high') return 'Hoch';
+    if (confidence === 'medium') return 'Mittel';
+    if (confidence === 'low') return 'Niedrig';
+    return null;
+}
+
 export default function ResultScreen() {
-    const { barcode, found, productName, brand } = useLocalSearchParams<{
+    const {
+        barcode,
+        found,
+        productName,
+        brand,
+        pfandType,
+        evidence,
+        confidence,
+    } = useLocalSearchParams<{
         barcode?: string;
         found?: string;
         productName?: string;
         brand?: string;
+        pfandType?: string;
+        evidence?: string;
+        confidence?: string;
     }>();
 
     const productFound = found === 'true';
@@ -18,7 +36,7 @@ export default function ResultScreen() {
             <StatusBar style="dark" />
 
             <View style={styles.content}>
-                <Text style={styles.label}>Open Food Facts</Text>
+                <Text style={styles.label}>Flaschenerkennung</Text>
                 <Text style={styles.title}>
                     {productFound
                         ? productName || 'Name unbekannt'
@@ -32,15 +50,21 @@ export default function ResultScreen() {
                 <Text style={styles.barcode}>Barcode: {barcode || 'unbekannt'}</Text>
 
                 <View style={styles.info}>
-                    <Text style={styles.infoTitle}>Rückgabeorte</Text>
+                    <Text style={styles.infoTitle}>Pfandtyp</Text>
+                    <Text style={styles.pfandType}>{pfandType || 'Unbekannt'}</Text>
                     <Text style={styles.infoText}>
-                        Filialdaten sind noch nicht verfügbar.
+                        {evidence || 'Keine eindeutige Markierung erkannt.'}
                     </Text>
+                    {confidenceLabel(confidence) ? (
+                        <Text style={styles.confidence}>
+                            Lesesicherheit: {confidenceLabel(confidence)}
+                        </Text>
+                    ) : null}
                 </View>
 
                 <Text style={styles.note}>
-                    Produktdaten können unvollständig sein. Pfandstatus und
-                    Filialannahme sind nicht bestätigt.
+                    Die Fotoanalyse wertet sichtbare Markierungen aus. Sie bestätigt
+                    nicht, dass eine bestimmte Supermarktkette die Flasche annimmt.
                 </Text>
 
                 <View style={styles.actions}>
@@ -103,14 +127,25 @@ const styles = StyleSheet.create({
         borderRadius: 8,
     },
     infoTitle: {
+        color: '#5D6C64',
+        fontSize: 14,
+    },
+    pfandType: {
         color: '#173B32',
-        fontSize: 18,
-        fontWeight: '700',
+        fontSize: 24,
+        fontWeight: '800',
+        marginTop: 8,
     },
     infoText: {
         color: '#5D6C64',
         fontSize: 15,
+        lineHeight: 21,
         marginTop: 8,
+    },
+    confidence: {
+        color: '#5D6C64',
+        fontSize: 14,
+        marginTop: 10,
     },
     note: {
         color: '#59675F',
