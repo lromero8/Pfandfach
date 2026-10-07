@@ -145,7 +145,8 @@ export default {
         let input: unknown;
         try {
             input = await request.json();
-        } catch {
+        }
+        catch {
             return jsonResponse({ error: 'Invalid JSON body' }, 400);
         }
 
@@ -237,7 +238,8 @@ Return the evidence in German.
                     signal: AbortSignal.timeout(45_000),
                 },
             );
-        } catch {
+        }
+        catch {
             return jsonResponse({ error: 'Gemini request failed' }, 502);
         }
 
@@ -249,7 +251,8 @@ Return the evidence in German.
 
         try {
             geminiData = await geminiResponse.json();
-        } catch {
+        }
+        catch {
             return jsonResponse({ error: 'Invalid Gemini response' }, 502);
         }
 
@@ -262,7 +265,8 @@ Return the evidence in German.
         try {
             const parsedResult: unknown = JSON.parse(responseText);
             return jsonResponse(validateResult(parsedResult));
-        } catch {
+        }
+        catch {
             return jsonResponse(
                 unknownResult(
                     'Die Markierung konnte nicht zuverlässig ausgewertet werden.',
