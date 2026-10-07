@@ -235,7 +235,7 @@ Return the evidence in German.
                             },
                         },
                     }),
-                    signal: AbortSignal.timeout(45_000),
+                    signal: AbortSignal.timeout(120_000),
                 },
             );
         }
