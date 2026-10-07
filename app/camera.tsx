@@ -74,7 +74,7 @@ export default function CameraScreen() {
             );
 
             if (!response.ok) {
-                throw new Error('Product lookup failed');
+                throw new Error('Produktabfrage fehlgeschlagen.');
             }
 
             const result: OpenFoodFactsResponse = await response.json();
@@ -128,7 +128,7 @@ export default function CameraScreen() {
             });
 
             if (!photo.base64) {
-                throw new Error('Photo data is missing');
+                throw new Error('Das Foto enthält keine Bilddaten.');
             }
 
             if (photo.base64.length > 3_250_000) {
@@ -149,19 +149,26 @@ export default function CameraScreen() {
                 }),
             });
 
-            // if (!response.ok) {
-            //     throw new Error(`Classification request failed: ${response.status}`);
-            // }
-            if (!response.ok) {
-                const body = await response.text();
-                console.warn('[PFAND_API]', response.status, body);
-                throw new Error(`Classification request failed: ${response.status}`);
+            let responseBody: unknown;
+
+            try {
+                responseBody = await response.json();
+            } catch {
+                responseBody = null;
             }
 
-            const result: unknown = await response.json();
+            if (!response.ok) {
+                const message =
+                    isRecord(responseBody) &&
+                    typeof responseBody.error === 'string'
+                        ? responseBody.error
+                        : `Serverfehler (${response.status}).`;
 
-            if (!isClassificationResult(result)) {
-                throw new Error('Invalid classification response');
+                throw new Error(message);
+            }
+
+            if (!isClassificationResult(responseBody)) {
+                throw new Error('Ungültige Antwort vom Klassifizierungsserver.');
             }
 
             router.replace({
@@ -171,14 +178,16 @@ export default function CameraScreen() {
                     found: product?.found ? 'true' : 'false',
                     productName: product?.name || 'Produkt nicht gefunden',
                     brand: product?.brand || '',
-                    pfandType: result.classification,
-                    evidence: result.evidence,
-                    confidence: result.confidence,
+                    pfandType: responseBody.classification,
+                    evidence: responseBody.evidence,
+                    confidence: responseBody.confidence,
                 },
             });
-        } catch {
+        } catch (error) {
             setLookupMessage(
-                'Fotoanalyse fehlgeschlagen. Verbindung prüfen und erneut versuchen.',
+                error instanceof Error
+                    ? error.message
+                    : 'Fotoanalyse fehlgeschlagen. Verbindung prüfen und erneut versuchen.',
             );
         } finally {
             setIsBusy(false);

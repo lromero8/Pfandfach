@@ -139,15 +139,15 @@ export default {
 
         const contentLength = Number(request.headers.get('content-length') || 0);
         if (contentLength > 3_500_000) {
-            return jsonResponse({ error: 'Image is too large' }, 413);
+            return jsonResponse({ error: 'Das Foto ist zu groß.' }, 413);
         }
 
         let input: unknown;
+
         try {
             input = await request.json();
-        }
-        catch {
-            return jsonResponse({ error: 'Invalid JSON body' }, 400);
+        } catch {
+            return jsonResponse({ error: 'Ungültige Anfrage.' }, 400);
         }
 
         const imageBase64 =
@@ -169,23 +169,22 @@ export default {
             !/^[A-Za-z0-9+/]+={0,2}$/.test(imageBase64) ||
             !mimeType
         ) {
-            return jsonResponse({ error: 'Invalid or oversized image' }, 400);
+            return jsonResponse(
+                { error: 'Ungültiges oder zu großes Foto.' },
+                400,
+            );
         }
 
-//         const prompt = `
-// Inspect this image for a German bottle or can deposit marking.
-
-// Classify it as Einweg only if a DPG one-way deposit mark or explicit Einweg text is clearly visible.
-// Classify it as Mehrweg only if explicit Mehrweg text or a clearly identifiable reusable-container mark is visible.
-// Do not guess based on the brand, product, container material, or shape.
-// If the marking is missing, blurry, obscured, or ambiguous, classify it as Unbekannt.
-// In evidence, quote or briefly describe only the visible mark. Never invent evidence.
-// Confidence describes how clearly the mark can be read, not the probability that a retailer accepts the container.
-// Return the evidence in German.
-// `;
         const prompt = `
-Return a JSON classification with classification "Unbekannt",
-evidence "Text connection test", and confidence "low".
+Inspect this image for a German bottle or can deposit marking.
+
+Classify it as Einweg only if a DPG one-way deposit mark or explicit Einweg text is clearly visible.
+Classify it as Mehrweg only if explicit Mehrweg text or a clearly identifiable reusable-container mark is visible.
+Do not guess based on the brand, product, container material, or shape.
+If the marking is missing, blurry, obscured, or ambiguous, classify it as Unbekannt.
+In evidence, quote or briefly describe only the visible mark. Never invent evidence.
+Confidence describes how clearly the mark can be read, not the probability that a retailer accepts the container.
+Return the evidence in German.
 `;
 
         const schema = {
@@ -208,7 +207,7 @@ evidence "Text connection test", and confidence "low".
 
         try {
             geminiResponse = await fetch(
-                'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent',
+                'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent',
                 {
                     method: 'POST',
                     headers: {
@@ -218,16 +217,15 @@ evidence "Text connection test", and confidence "low".
                     body: JSON.stringify({
                         contents: [
                             {
-                                // parts: [
-                                //     { text: prompt },
-                                //     {
-                                //         inlineData: {
-                                //             mimeType,
-                                //             data: imageBase64,
-                                //         },
-                                //     },
-                                // ],
-                                parts: [{ text: prompt }],
+                                parts: [
+                                    { text: prompt },
+                                    {
+                                        inlineData: {
+                                            mimeType,
+                                            data: imageBase64,
+                                        },
+                                    },
+                                ],
                             },
                         ],
                         generationConfig: {
@@ -240,49 +238,71 @@ evidence "Text connection test", and confidence "low".
                             },
                         },
                     }),
-                    signal: AbortSignal.timeout(20_000),
+                    signal: AbortSignal.timeout(60_000),
                 },
             );
-        }
-        catch (error) {
+        } catch (error) {
             console.error(
                 '[PFAND_GEMINI_FETCH]',
                 error instanceof Error ? error.name : 'UnknownError',
                 error instanceof Error ? error.message : '',
             );
-            return jsonResponse({ error: 'Gemini request failed' }, 502);
+
+            if (error instanceof Error && error.name === 'TimeoutError') {
+                return jsonResponse(
+                    { error: 'Gemini antwortet zu langsam. Bitte erneut versuchen.' },
+                    504,
+                );
+            }
+
+            return jsonResponse(
+                { error: 'Gemini konnte nicht erreicht werden.' },
+                502,
+            );
         }
 
         if (!geminiResponse.ok) {
             const errorBody = await geminiResponse.text();
+
             console.error(
                 '[PFAND_GEMINI_HTTP]',
                 geminiResponse.status,
-                errorBody.slice(0, 1000),
+                errorBody.slice(0, 800),
             );
-            return jsonResponse({ error: 'Gemini rejected the request' }, 502);
+
+            if (geminiResponse.status === 503 || geminiResponse.status === 429) {
+                return jsonResponse(
+                    {
+                        error: 'Gemini ist gerade ausgelastet. Bitte gleich erneut versuchen.',
+                    },
+                    geminiResponse.status,
+                );
+            }
+
+            return jsonResponse(
+                { error: 'Gemini konnte das Foto nicht auswerten.' },
+                502,
+            );
         }
 
         let geminiData: GeminiResponse;
 
         try {
             geminiData = await geminiResponse.json();
-        }
-        catch {
-            return jsonResponse({ error: 'Invalid Gemini response' }, 502);
+        } catch {
+            return jsonResponse({ error: 'Ungültige Antwort von Gemini.' }, 502);
         }
 
         const responseText = getGeminiResponseText(geminiData);
 
         if (!responseText) {
-            return jsonResponse({ error: 'Gemini returned no result' }, 502);
+            return jsonResponse({ error: 'Gemini hat kein Ergebnis geliefert.' }, 502);
         }
 
         try {
             const parsedResult: unknown = JSON.parse(responseText);
             return jsonResponse(validateResult(parsedResult));
-        }
-        catch {
+        } catch {
             return jsonResponse(
                 unknownResult(
                     'Die Markierung konnte nicht zuverlässig ausgewertet werden.',
