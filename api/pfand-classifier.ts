@@ -239,12 +239,23 @@ Return the evidence in German.
                 },
             );
         }
-        catch {
+        catch (error) {
+            console.error(
+                '[PFAND_GEMINI_FETCH]',
+                error instanceof Error ? error.name : 'UnknownError',
+                error instanceof Error ? error.message : '',
+            );
             return jsonResponse({ error: 'Gemini request failed' }, 502);
         }
 
         if (!geminiResponse.ok) {
-            return jsonResponse({ error: 'Gemini request failed' }, 502);
+            const errorBody = await geminiResponse.text();
+            console.error(
+                '[PFAND_GEMINI_HTTP]',
+                geminiResponse.status,
+                errorBody.slice(0, 1000),
+            );
+            return jsonResponse({ error: 'Gemini rejected the request' }, 502);
         }
 
         let geminiData: GeminiResponse;

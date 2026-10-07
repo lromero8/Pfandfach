@@ -149,7 +149,12 @@ export default function CameraScreen() {
                 }),
             });
 
+            // if (!response.ok) {
+            //     throw new Error(`Classification request failed: ${response.status}`);
+            // }
             if (!response.ok) {
+                const body = await response.text();
+                console.warn('[PFAND_API]', response.status, body);
                 throw new Error(`Classification request failed: ${response.status}`);
             }
 
