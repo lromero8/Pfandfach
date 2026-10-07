@@ -4,11 +4,55 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRef, useState } from 'react';
 
+type OpenFoodFactsResponse = {
+    status: string;
+    product?: {
+        product_name?: string;
+        brands?: string;
+    };
+};
+
 export default function CameraScreen() {
     const [permission, requestPermission] = useCameraPermissions();
     const [torchEnabled, setTorchEnabled] = useState(false);
     const [scannedCode, setScannedCode] = useState<string | null>(null);
+    const [lookupMessage, setLookupMessage] = useState<string | null>(null);
     const scannedOnce = useRef(false);
+
+    async function lookupProduct(barcode: string) {
+        setLookupMessage('Produkt wird gesucht ...');
+
+        try {
+            const response = await fetch(
+                `https://world.openfoodfacts.org/api/v3.6/product/${encodeURIComponent(barcode)}.json`,
+                {
+                    headers: {
+                        Accept: 'application/json',
+                        'User-Agent': 'Pfandfach/1.0 (your-email@example.com)',
+                    },
+                },
+            );
+
+            if (!response.ok) {
+                throw new Error('Request failed');
+            }
+
+            const result: OpenFoodFactsResponse = await response.json();
+
+            if (result.status !== 'success' || !result.product) {
+                setLookupMessage('Produkt nicht in Open Food Facts gefunden');
+                return;
+            }
+
+            const name = result.product.product_name || 'Name unbekannt';
+            const brand = result.product.brands;
+
+            setLookupMessage(brand ? `${name} · ${brand}` : name);
+        }
+        catch {
+            setLookupMessage('Lookup fehlgeschlagen. Verbindung prüfen.');
+        }
+    }
 
     if (!permission) {
         return (
@@ -50,6 +94,7 @@ export default function CameraScreen() {
                     if (scannedOnce.current) return;
                     scannedOnce.current = true;
                     setScannedCode(data);
+                    void lookupProduct(data);
                 }}
                 style={StyleSheet.absoluteFill}
             />
@@ -73,13 +118,18 @@ export default function CameraScreen() {
                         <Text style={styles.guideText}>
                             {scannedCode ?? 'Flasche mittig halten'}
                         </Text>
+                        {lookupMessage ? (
+                            <Text style={styles.guideText}>{lookupMessage}</Text>
+                        ) : null}
                     </View>
                 </View>
 
                 <View style={styles.controls}>
                     <Pressable
                         accessibilityRole="button"
-                        accessibilityLabel={torchEnabled ? 'Blitz ausschalten' : 'Blitz einschalten'}
+                        accessibilityLabel={
+                            torchEnabled ? 'Blitz ausschalten' : 'Blitz einschalten'
+                        }
                         onPress={() => setTorchEnabled((enabled) => !enabled)}
                         style={styles.flashButton}
                     >
@@ -95,6 +145,7 @@ export default function CameraScreen() {
                         onPress={() => {
                             scannedOnce.current = false;
                             setScannedCode(null);
+                            setLookupMessage(null);
                         }}
                         style={[
                             styles.shutter,
@@ -160,6 +211,8 @@ const styles = StyleSheet.create({
     guideText: {
         color: '#FFFFFF',
         fontSize: 14,
+        textAlign: 'center',
+        paddingHorizontal: 8,
     },
     controls: {
         minHeight: 112,
