@@ -10,21 +10,27 @@ const ALLOWED_MIME_TYPES: string[] = ['image/jpeg', 'image/png', 'image/webp'];
 type PfandClassification = 'Einweg' | 'Mehrweg' | 'Unbekannt';
 type Confidence = 'high' | 'medium' | 'low';
 
-type ClassificationResult = {
+interface ClassificationResult {
     classification: PfandClassification;
     evidence: string;
     confidence: Confidence;
 };
 
-type GeminiResponse = {
-    candidates?: Array<{
-        content?: {
-            parts?: Array<{
-                text?: unknown;
-            }>;
-        };
-    }>;
-};
+interface GeminiResponsePart {
+    text?: unknown;
+}
+
+interface GeminiResponseContent {
+    parts?: GeminiResponsePart[];
+}
+
+interface GeminiResponseCandidate {
+    content?: GeminiResponseContent;
+}
+
+interface GeminiResponse {
+    candidates?: GeminiResponseCandidate[];
+}
 
 function jsonResponse(body: unknown, status = 200): Response {
     return new Response(JSON.stringify(body), {
