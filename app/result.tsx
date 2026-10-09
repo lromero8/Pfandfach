@@ -15,13 +15,6 @@ import {
 // - If results are returned, display the predicted acceptance status for each nearby supermarket.
 // - Then on the home page, we need to display the previously scanned bottles so that users click on them to record which supermarkets accepted or rejected them. That way we will collect feedback to improve the accuracy of future acceptance predictions.
 
-function confidenceLabel(confidence?: string) {
-    if (confidence === 'high') return 'Hoch';
-    if (confidence === 'medium') return 'Mittel';
-    if (confidence === 'low') return 'Niedrig';
-    return null;
-}
-
 const acceptanceLabels: Record<AcceptanceStatus, string> = {
     likely_accepted: 'Vermutlich angenommen',
     likely_rejected: 'Vermutlich abgelehnt',
@@ -34,18 +27,12 @@ export default function ResultScreen() {
         found,
         productName,
         brand,
-        pfandType,
-        evidence,
-        confidence,
         acceptances,
     } = useLocalSearchParams<{
         barcode?: string;
         found?: string;
         productName?: string;
         brand?: string;
-        pfandType?: string;
-        evidence?: string;
-        confidence?: string;
         acceptances?: string;
     }>();
 
@@ -69,19 +56,6 @@ export default function ResultScreen() {
                 ) : null}
 
                 <Text style={styles.barcode}>Barcode: {barcode || 'unbekannt'}</Text>
-
-                <View style={styles.info}>
-                    <Text style={styles.infoTitle}>Pfandtyp</Text>
-                    <Text style={styles.pfandType}>{pfandType || 'Unbekannt'}</Text>
-                    <Text style={styles.infoText}>
-                        {evidence || 'Keine eindeutige Markierung erkannt.'}
-                    </Text>
-                    {confidenceLabel(confidence) ? (
-                        <Text style={styles.confidence}>
-                            Lesesicherheit: {confidenceLabel(confidence)}
-                        </Text>
-                    ) : null}
-                </View>
 
                 <View style={styles.branches}>
                     <Text style={styles.infoTitle}>Filialen in der Nähe</Text>
@@ -108,7 +82,7 @@ export default function ResultScreen() {
                 </View>
 
                 <Text style={styles.note}>
-                    Die Fotoanalyse wertet sichtbare Markierungen aus. Sie bestätigt
+                    Die Vorhersage basiert auf gemeldeten Rückgaben. Sie bestätigt
                     nicht, dass eine bestimmte Supermarktkette die Flasche annimmt.
                 </Text>
 
@@ -165,32 +139,15 @@ const styles = StyleSheet.create({
         fontSize: 14,
         marginTop: 10,
     },
-    info: {
-        marginTop: 28,
-        padding: 20,
-        backgroundColor: '#FFFFFF',
-        borderRadius: 8,
-    },
     infoTitle: {
         color: '#5D6C64',
         fontSize: 14,
-    },
-    pfandType: {
-        color: '#173B32',
-        fontSize: 24,
-        fontWeight: '800',
-        marginTop: 8,
     },
     infoText: {
         color: '#5D6C64',
         fontSize: 15,
         lineHeight: 21,
         marginTop: 8,
-    },
-    confidence: {
-        color: '#5D6C64',
-        fontSize: 14,
-        marginTop: 10,
     },
     branches: {
         marginTop: 16,
