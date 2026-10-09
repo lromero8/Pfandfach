@@ -1,0 +1,34 @@
+name: Preview
+
+on:
+  push:
+    branches: ['main']
+
+jobs:
+  fingerprint:
+    type: fingerprint
+    environment: preview
+
+  get_build:
+    needs: [fingerprint]
+    type: get-build
+    params:
+      platform: android
+      profile: preview
+      distribution: internal
+      fingerprint_hash: ${{ needs.fingerprint.outputs.android_fingerprint_hash }}
+
+  build:
+    needs: [get_build]
+    if: ${{ !needs.get_build.outputs.build_id }}
+    type: build
+    params:
+      platform: android
+      profile: preview
+
+  update:
+    needs: [get_build]
+    after: [build]
+    type: update
+    params:
+      channel: preview
