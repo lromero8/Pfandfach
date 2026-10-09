@@ -3,6 +3,8 @@ import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRef, useState } from 'react';
+import { useNearbyBranches } from '../lib/nearby-branches';
+import { requestBranchAcceptance } from '../lib/branch-acceptance';
 
 const PFAND_API_URL =
     'https://pfandfach.vercel.app/api/pfand-classifier';
@@ -57,6 +59,7 @@ export default function CameraScreen() {
     const [isBusy, setIsBusy] = useState(false);
     const cameraRef = useRef<CameraView | null>(null);
     const scannedOnce = useRef(false);
+    const { waitForBranches } = useNearbyBranches();
 
     async function lookupProduct(barcode: string) {
         setIsBusy(true);
@@ -171,6 +174,12 @@ export default function CameraScreen() {
                 throw new Error('Ungültige Antwort vom Klassifizierungsserver.');
             }
 
+            setLookupMessage('Filialen werden geprüft ...');
+            const branches = await waitForBranches();
+
+            setLookupMessage('Vorhersage wird abgerufen ...');
+            const acceptances = await requestBranchAcceptance(scannedCode, branches);
+
             router.replace({
                 pathname: '/result',
                 params: {
@@ -181,6 +190,7 @@ export default function CameraScreen() {
                     pfandType: responseBody.classification,
                     evidence: responseBody.evidence,
                     confidence: responseBody.confidence,
+                    acceptances: JSON.stringify(acceptances),
                 },
             });
         } catch (error) {

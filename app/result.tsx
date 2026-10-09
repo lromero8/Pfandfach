@@ -1,7 +1,19 @@
 import { StatusBar } from 'expo-status-bar';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+    parseBranchAcceptances,
+    type AcceptanceStatus,
+} from '../lib/branch-acceptance';
+
+// TO-DO
+// - On openning the app we need to fetch the nearby supermarkets or relevant locations based on the user's current position. Max 3 locations should be retrieved.
+// - If possible, the address of the supermarkets should be normalized to the format: "Bonner Str. 211, 50968 Köln"
+// - Then, on every scann we send the barcode and the current location to the backend to get the predicted acceptance status for the nearby supermarkets.
+// - If no results then display no results.
+// - If results are returned, display the predicted acceptance status for each nearby supermarket.
+// - Then on the home page, we need to display the previously scanned bottles so that users click on them to record which supermarkets accepted or rejected them. That way we will collect feedback to improve the accuracy of future acceptance predictions.
 
 function confidenceLabel(confidence?: string) {
     if (confidence === 'high') return 'Hoch';
@@ -9,6 +21,12 @@ function confidenceLabel(confidence?: string) {
     if (confidence === 'low') return 'Niedrig';
     return null;
 }
+
+const acceptanceLabels: Record<AcceptanceStatus, string> = {
+    likely_accepted: 'Vermutlich angenommen',
+    likely_rejected: 'Vermutlich abgelehnt',
+    unknown: 'Unklar',
+};
 
 export default function ResultScreen() {
     const {
@@ -19,6 +37,7 @@ export default function ResultScreen() {
         pfandType,
         evidence,
         confidence,
+        acceptances,
     } = useLocalSearchParams<{
         barcode?: string;
         found?: string;
@@ -27,15 +46,17 @@ export default function ResultScreen() {
         pfandType?: string;
         evidence?: string;
         confidence?: string;
+        acceptances?: string;
     }>();
 
     const productFound = found === 'true';
+    const branchAcceptances = parseBranchAcceptances(acceptances);
 
     return (
         <SafeAreaView style={styles.screen}>
             <StatusBar style="dark" />
 
-            <View style={styles.content}>
+            <ScrollView contentContainerStyle={styles.content}>
                 <Text style={styles.label}>Flaschenerkennung</Text>
                 <Text style={styles.title}>
                     {productFound
@@ -62,6 +83,30 @@ export default function ResultScreen() {
                     ) : null}
                 </View>
 
+                <View style={styles.branches}>
+                    <Text style={styles.infoTitle}>Filialen in der Nähe</Text>
+
+                    {branchAcceptances.length === 0 ? (
+                        <Text style={styles.infoText}>
+                            Keine Filialen zur Vorhersage gefunden.
+                        </Text>
+                    ) : null}
+
+                    {branchAcceptances.map((branch, index) => (
+                        <View key={`${branch.retailer}-${index}`} style={styles.branchRow}>
+                            <View style={styles.branchText}>
+                                <Text style={styles.branchName}>{branch.name}</Text>
+                                <Text style={styles.infoText}>
+                                    {branch.address ?? 'Adresse unbekannt'}
+                                </Text>
+                            </View>
+                            <Text style={styles.branchAcceptance}>
+                                {acceptanceLabels[branch.acceptance]}
+                            </Text>
+                        </View>
+                    ))}
+                </View>
+
                 <Text style={styles.note}>
                     Die Fotoanalyse wertet sichtbare Markierungen aus. Sie bestätigt
                     nicht, dass eine bestimmte Supermarktkette die Flasche annimmt.
@@ -84,7 +129,7 @@ export default function ResultScreen() {
                         <Text style={styles.secondaryButtonText}>Zur Übersicht</Text>
                     </Pressable>
                 </View>
-            </View>
+            </ScrollView>
         </SafeAreaView>
     );
 }
@@ -95,7 +140,7 @@ const styles = StyleSheet.create({
         backgroundColor: '#F1F4EC',
     },
     content: {
-        flex: 1,
+        flexGrow: 1,
         justifyContent: 'center',
         padding: 24,
     },
@@ -146,6 +191,34 @@ const styles = StyleSheet.create({
         color: '#5D6C64',
         fontSize: 14,
         marginTop: 10,
+    },
+    branches: {
+        marginTop: 16,
+        padding: 20,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 8,
+    },
+    branchRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 12,
+        paddingVertical: 12,
+        borderTopColor: '#D8DED5',
+        borderTopWidth: 1,
+    },
+    branchText: {
+        flex: 1,
+    },
+    branchName: {
+        color: '#173B32',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    branchAcceptance: {
+        color: '#31594B',
+        fontSize: 14,
+        fontWeight: '700',
     },
     note: {
         color: '#59675F',

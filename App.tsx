@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 
 export default function App() {
@@ -10,12 +10,14 @@ export default function App() {
     <View style={styles.screen}>
       <StatusBar style="dark" />
 
-      <View style={styles.content}>
+      <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.brand}>Pfandfach</Text>
 
         <View style={styles.intro}>
           <Text style={styles.title}>Wo gehört diese Flasche hin?</Text>
-          <Text style={styles.subtitle}>Scanne dein Pfand, bevor du es in die richtige Tasche legst.</Text>
+          <Text style={styles.subtitle}>
+            Scanne dein Pfand, bevor du es in die richtige Tasche legst.
+          </Text>
         </View>
 
         <View style={styles.actions}>
@@ -33,7 +35,9 @@ export default function App() {
 
           <Pressable
             accessibilityRole="button"
-            onPress={() => setMessage('Die Fotoauswahl richten wir als Nächstes ein.')}
+            onPress={() =>
+              setMessage('Die Fotoauswahl richten wir als Nächstes ein.')
+            }
             style={({ pressed }) => [
               styles.uploadButton,
               pressed && styles.pressed,
@@ -45,7 +49,7 @@ export default function App() {
         </View>
 
         {message ? <Text style={styles.message}>{message}</Text> : null}
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -56,9 +60,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#F1F4EC',
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
     paddingHorizontal: 22,
     paddingTop: 54,
+    paddingBottom: 32,
   },
   brand: {
     color: '#173B32',

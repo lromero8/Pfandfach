@@ -1,5 +1,10 @@
 import { Stack } from 'expo-router';
+import { NearbyBranchesProvider } from '../lib/nearby-branches';
 
 export default function RootLayout() {
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return (
+    <NearbyBranchesProvider>
+      <Stack screenOptions={{ headerShown: false }} />
+    </NearbyBranchesProvider>
+  );
 }
