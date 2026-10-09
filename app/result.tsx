@@ -1,10 +1,12 @@
 import { StatusBar } from 'expo-status-bar';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
     parseBranchAcceptances,
     type AcceptanceStatus,
+    type BranchAcceptance,
 } from '../lib/branch-acceptance';
 
 // TO-DO
@@ -21,6 +23,32 @@ const acceptanceLabels: Record<AcceptanceStatus, string> = {
     unknown: 'Unklar',
 };
 
+const retailerLabels: Record<string, string | undefined> = {
+    aldi: 'Aldi',
+    edeka: 'Edeka',
+    kaufland: 'Kaufland',
+    lidl: 'Lidl',
+    norma: 'Norma',
+    rewe: 'REWE',
+};
+
+function groupByRetailer(branches: BranchAcceptance[]) {
+    const groups = new Map<string, BranchAcceptance[]>();
+
+    for (const branch of branches) {
+        const group = groups.get(branch.retailer);
+
+        if (group) {
+            group.push(branch);
+        }
+        else {
+            groups.set(branch.retailer, [branch]);
+        }
+    }
+
+    return Array.from(groups, ([retailer, items]) => ({ retailer, items }));
+}
+
 export default function ResultScreen() {
     const {
         barcode,
@@ -35,6 +63,23 @@ export default function ResultScreen() {
         brand?: string;
         acceptances?: string;
     }>();
+
+    const [expandedChains, setExpandedChains] = useState<Set<string>>(() => new Set());
+
+    function toggleChain(retailer: string) {
+        setExpandedChains((current) => {
+            const next = new Set(current);
+
+            if (next.has(retailer)) {
+                next.delete(retailer);
+            }
+            else {
+                next.add(retailer);
+            }
+
+            return next;
+        });
+    }
 
     const productFound = found === 'true';
     const branchAcceptances = parseBranchAcceptances(acceptances);
@@ -66,19 +111,41 @@ export default function ResultScreen() {
                         </Text>
                     ) : null}
 
-                    {branchAcceptances.map((branch, index) => (
-                        <View key={`${branch.retailer}-${index}`} style={styles.branchRow}>
-                            <View style={styles.branchText}>
-                                <Text style={styles.branchName}>{branch.name}</Text>
-                                <Text style={styles.infoText}>
-                                    {branch.address ?? 'Adresse unbekannt'}
-                                </Text>
+                    {groupByRetailer(branchAcceptances).map((group) => {
+                        const isOpen = expandedChains.has(group.retailer);
+
+                        return (
+                            <View key={group.retailer} style={styles.chainGroup}>
+                                <Pressable
+                                    accessibilityRole="button"
+                                    accessibilityState={{ expanded: isOpen }}
+                                    onPress={() => toggleChain(group.retailer)}
+                                    style={styles.chainHeader}
+                                >
+                                    <Text style={styles.chainName}>
+                                        {retailerLabels[group.retailer] ?? group.retailer} ({group.items.length})
+                                    </Text>
+                                    <Text style={styles.chainName}>{isOpen ? '▾' : '▸'}</Text>
+                                </Pressable>
+
+                                {isOpen
+                                    ? group.items.map((branch, index) => (
+                                        <View key={`${branch.name}-${index}`} style={styles.branchRow}>
+                                            <View style={styles.branchText}>
+                                                <Text style={styles.branchName}>{branch.name}</Text>
+                                                <Text style={styles.infoText}>
+                                                    {branch.address ?? 'Adresse unbekannt'}
+                                                </Text>
+                                            </View>
+                                            <Text style={styles.branchAcceptance}>
+                                                {acceptanceLabels[branch.acceptance]}
+                                            </Text>
+                                        </View>
+                                    ))
+                                    : null}
                             </View>
-                            <Text style={styles.branchAcceptance}>
-                                {acceptanceLabels[branch.acceptance]}
-                            </Text>
-                        </View>
-                    ))}
+                        );
+                    })}
                 </View>
 
                 <Text style={styles.note}>
@@ -154,6 +221,21 @@ const styles = StyleSheet.create({
         padding: 20,
         backgroundColor: '#FFFFFF',
         borderRadius: 8,
+    },
+    chainGroup: {
+        marginTop: 12,
+    },
+    chainHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 8,
+    },
+    chainName: {
+        color: '#31594B',
+        fontSize: 14,
+        fontWeight: '800',
+        textTransform: 'uppercase',
     },
     branchRow: {
         flexDirection: 'row',
