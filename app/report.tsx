@@ -1,8 +1,9 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { forgetAcceptance, loadAcceptance } from '../lib/acceptance-cache';
 import { useNearbyBranches } from '../lib/nearby-branches';
 import { submitAcceptedReport } from '../lib/return-reports';
 import type { Supermarket } from '../lib/supermarkets';
@@ -19,8 +20,41 @@ export default function ReportScreen() {
     }>();
     const { status, branches, message } = useNearbyBranches();
     const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => new Set());
+    const [reportedKeys, setReportedKeys] = useState<Set<string>>(() => new Set());
+    const [reportedError, setReportedError] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [saveError, setSaveError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (status !== 'ready' || branches.length === 0) return;
+
+        let cancelled = false;
+
+        loadAcceptance(barcode, branches)
+            .then((acceptances) => {
+                if (cancelled) return;
+
+                const keys = branches
+                    .filter((_, index) => acceptances[index]?.acceptance === 'likely_accepted')
+                    .map(branchKey);
+
+                setReportedKeys(new Set(keys));
+                setSelectedKeys((current) => new Set([...current, ...keys]));
+            })
+            .catch(() => {
+                if (!cancelled) setReportedError('Bereits gemeldete Filialen konnten nicht geladen werden.');
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [barcode, branches, status]);
+
+    function isNewSelection(branch: Supermarket): boolean {
+        const key = branchKey(branch);
+
+        return selectedKeys.has(key) && !reportedKeys.has(key);
+    }
 
     function toggleBranch(branch: Supermarket) {
         const key = branchKey(branch);
@@ -40,13 +74,14 @@ export default function ReportScreen() {
     }
 
     async function saveReport() {
-        const selected = branches.filter((branch) => selectedKeys.has(branchKey(branch)));
+        const selected = branches.filter(isNewSelection);
 
         setIsSaving(true);
         setSaveError(null);
 
         try {
             await Promise.all(selected.map((branch) => submitAcceptedReport(barcode, branch)));
+            forgetAcceptance(barcode);
             router.back();
         }
         catch (error) {
@@ -59,7 +94,7 @@ export default function ReportScreen() {
         }
     }
 
-    const hasSelection = selectedKeys.size > 0;
+    const hasSelection = branches.some(isNewSelection);
 
     return (
         <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
@@ -90,11 +125,13 @@ export default function ReportScreen() {
             {status === 'ready' && branches.length === 0 ? (
                 <Text style={styles.info}>Keine Filialen in der Nähe gefunden.</Text>
             ) : null}
+            {reportedError ? <Text style={styles.info}>{reportedError}</Text> : null}
 
             <ScrollView contentContainerStyle={styles.list}>
                 {branches.map((branch) => {
+                    const reported = reportedKeys.has(branchKey(branch));
                     const selected = selectedKeys.has(branchKey(branch));
-                    const disabled = branch.address === null;
+                    const disabled = branch.address === null || reported;
 
                     return (
                         <Pressable
@@ -106,7 +143,7 @@ export default function ReportScreen() {
                             style={({ pressed }) => [
                                 styles.branchRow,
                                 selected && styles.branchRowSelected,
-                                disabled && styles.branchRowDisabled,
+                                branch.address === null && styles.branchRowDisabled,
                                 pressed && !disabled && styles.pressed,
                             ]}
                         >
@@ -118,6 +155,7 @@ export default function ReportScreen() {
                                 <Text style={styles.branchAddress}>
                                     {branch.address ?? 'Adresse unbekannt'}
                                 </Text>
+                                {reported ? <Text style={styles.reportedHint}>Bereits gemeldet</Text> : null}
                             </View>
                         </Pressable>
                     );
@@ -241,6 +279,12 @@ const styles = StyleSheet.create({
         color: '#66736C',
         fontSize: 13,
         marginTop: 2,
+    },
+    reportedHint: {
+        color: '#31594B',
+        fontSize: 13,
+        fontWeight: '700',
+        marginTop: 4,
     },
     footer: {
         paddingHorizontal: 22,

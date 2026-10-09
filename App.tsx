@@ -2,16 +2,25 @@ import { useCallback, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
+import { loadAcceptance } from './lib/acceptance-cache';
+import { useNearbyBranches } from './lib/nearby-branches';
 import { readScanHistory, type ScanHistoryItem } from './lib/scan-history';
 
 export default function App() {
   const [message, setMessage] = useState('');
   const [history, setHistory] = useState<ScanHistoryItem[]>([]);
+  const { status, branches } = useNearbyBranches();
 
   useFocusEffect(
     useCallback(() => {
-      void readScanHistory().then(setHistory);
-    }, []),
+      void readScanHistory().then((items) => {
+        setHistory(items);
+
+        if (status !== 'ready') return;
+
+        items.forEach((item) => void loadAcceptance(item.barcode, branches));
+      });
+    }, [branches, status]),
   );
 
   return (
