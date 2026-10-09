@@ -57,7 +57,8 @@ export default function CameraScreen() {
                 name: result.product.product_name || 'Name unbekannt',
                 brand: result.product.brands || '',
             };
-        } catch {
+        }
+        catch {
             return { found: false, name: 'Produktdaten nicht verfügbar', brand: '' };
         }
     }
