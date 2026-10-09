@@ -18,10 +18,20 @@ import {
 // - Then on the home page, we need to display the previously scanned bottles so that users click on them to record which supermarkets accepted or rejected them. That way we will collect feedback to improve the accuracy of future acceptance predictions.
 
 const acceptanceLabels: Record<AcceptanceStatus, string> = {
-    likely_accepted: 'Vermutlich angenommen',
-    likely_rejected: 'Vermutlich abgelehnt',
+    likely_accepted: 'Gemeldet: angenommen',
+    likely_rejected: 'Gemeldet: abgelehnt',
     unknown: 'Unklar',
 };
+
+const statusPriority: Record<AcceptanceStatus, number> = {
+    likely_accepted: 0,
+    likely_rejected: 1,
+    unknown: 2,
+};
+
+function bestPriority(items: BranchAcceptance[]): number {
+    return Math.min(...items.map((branch) => statusPriority[branch.acceptance]));
+}
 
 const retailerLabels: Record<string, string | undefined> = {
     aldi: 'Aldi',
@@ -46,7 +56,8 @@ function groupByRetailer(branches: BranchAcceptance[]) {
         }
     }
 
-    return Array.from(groups, ([retailer, items]) => ({ retailer, items }));
+    return Array.from(groups, ([retailer, items]) => ({ retailer, items }))
+        .sort((a, b) => bestPriority(a.items) - bestPriority(b.items));
 }
 
 export default function ResultScreen() {
