@@ -122,7 +122,7 @@ export default function CameraScreen() {
         }
 
         setIsBusy(true);
-        setLookupMessage('Pfandzeichen wird geprüft ...');
+        setLookupMessage('Pfandzeichen und Filialen werden geprüft ...');
 
         try {
             const photo = await cameraRef.current.takePictureAsync({
@@ -140,6 +140,11 @@ export default function CameraScreen() {
                 );
                 return;
             }
+
+            const acceptancePromise = waitForBranches().then((branches) =>
+                requestBranchAcceptance(scannedCode, branches),
+            );
+            acceptancePromise.catch(() => undefined);
 
             const response = await fetch(PFAND_API_URL, {
                 method: 'POST',
@@ -174,11 +179,8 @@ export default function CameraScreen() {
                 throw new Error('Ungültige Antwort vom Klassifizierungsserver.');
             }
 
-            setLookupMessage('Filialen werden geprüft ...');
-            const branches = await waitForBranches();
-
-            setLookupMessage('Vorhersage wird abgerufen ...');
-            const acceptances = await requestBranchAcceptance(scannedCode, branches);
+            setLookupMessage('Filialen und Vorhersage werden abgerufen ...');
+            const acceptances = await acceptancePromise;
 
             router.replace({
                 pathname: '/result',
