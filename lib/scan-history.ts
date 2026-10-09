@@ -4,6 +4,7 @@ export interface ScanHistoryItem {
     barcode: string;
     productName: string;
     brand: string;
+    imageUrl?: string | null;
     scannedAt: number;
 }
 
@@ -16,6 +17,7 @@ function isScanHistoryItem(value: unknown): value is ScanHistoryItem {
         && 'barcode' in value && typeof value.barcode === 'string'
         && 'productName' in value && typeof value.productName === 'string'
         && 'brand' in value && typeof value.brand === 'string'
+        && (!('imageUrl' in value) || value.imageUrl === null || typeof value.imageUrl === 'string')
         && 'scannedAt' in value && typeof value.scannedAt === 'number'
     );
 }

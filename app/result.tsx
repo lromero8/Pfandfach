@@ -9,6 +9,7 @@ import {
     type AcceptanceStatus,
     type BranchAcceptance,
 } from '../lib/branch-acceptance';
+import { ProductImage } from '../lib/product-image';
 
 // TO-DO
 // - On openning the app we need to fetch the nearby supermarkets or relevant locations based on the user's current position. Max 3 locations should be retrieved.
@@ -87,12 +88,14 @@ export default function ResultScreen() {
         found,
         productName,
         brand,
+        imageUrl,
         acceptances,
     } = useLocalSearchParams<{
         barcode?: string;
         found?: string;
         productName?: string;
         brand?: string;
+        imageUrl?: string;
         acceptances?: string;
     }>();
 
@@ -121,6 +124,8 @@ export default function ResultScreen() {
             <StatusBar style="dark" />
 
             <ScrollView contentContainerStyle={styles.content}>
+                <ProductImage imageUrl={imageUrl} style={styles.imageFrame} />
+
                 <Text style={styles.label}>Flaschenerkennung</Text>
                 <Text style={styles.title}>
                     {productFound
@@ -232,6 +237,10 @@ const styles = StyleSheet.create({
         color: '#64736A',
         fontSize: 14,
         fontWeight: '600',
+    },
+    imageFrame: {
+        height: 200,
+        marginBottom: 20,
     },
     title: {
         color: '#173B32',

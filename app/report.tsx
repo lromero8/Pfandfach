@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@react-native-vector-icons/ionicons';
 import { forgetAcceptance, loadAcceptance } from '../lib/acceptance-cache';
 import { useNearbyBranches } from '../lib/nearby-branches';
+import { ProductImage } from '../lib/product-image';
 import type { AcceptanceStatus } from '../lib/branch-acceptance';
 import { submitReport, type ReportOutcome } from '../lib/return-reports';
 import type { Supermarket } from '../lib/supermarkets';
@@ -34,10 +35,11 @@ const reportedLabels: Record<ReportOutcome, string> = {
 };
 
 export default function ReportScreen() {
-    const { barcode, productName, brand } = useLocalSearchParams<{
+    const { barcode, productName, brand, imageUrl } = useLocalSearchParams<{
         barcode: string;
         productName: string;
         brand: string;
+        imageUrl?: string;
     }>();
     const { status, branches, message } = useNearbyBranches();
     const [answers, setAnswers] = useState<Map<string, ReportOutcome>>(() => new Map());
@@ -131,6 +133,8 @@ export default function ReportScreen() {
                     <Text style={styles.backText}>Zurück</Text>
                 </Pressable>
             </View>
+
+            <ProductImage imageUrl={imageUrl} style={styles.imageFrame} />
 
             <View style={styles.intro}>
                 <Text style={styles.title}>Hat die Filiale angenommen?</Text>
@@ -241,6 +245,11 @@ const styles = StyleSheet.create({
         color: '#31594B',
         fontSize: 16,
         fontWeight: '700',
+    },
+    imageFrame: {
+        height: 160,
+        marginHorizontal: 22,
+        marginTop: 8,
     },
     intro: {
         paddingHorizontal: 22,

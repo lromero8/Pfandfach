@@ -86,6 +86,7 @@ export default function App() {
                       barcode: item.barcode,
                       productName: item.productName,
                       brand: item.brand,
+                      imageUrl: item.imageUrl ?? '',
                     },
                   })
                 }

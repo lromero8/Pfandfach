@@ -12,6 +12,7 @@ type OpenFoodFactsResponse = {
     product?: {
         product_name?: string;
         brands?: string;
+        image_front_small_url?: string;
     };
 };
 
@@ -19,6 +20,7 @@ type ProductInfo = {
     found: boolean;
     name: string;
     brand: string;
+    imageUrl: string | null;
 };
 
 export default function CameraScreen() {
@@ -33,7 +35,7 @@ export default function CameraScreen() {
     async function fetchProduct(barcode: string): Promise<ProductInfo> {
         try {
             const response = await fetch(
-                `https://world.openfoodfacts.org/api/v3.6/product/${encodeURIComponent(barcode)}.json`,
+                `https://world.openfoodfacts.org/api/v3.6/product/${encodeURIComponent(barcode)}.json?fields=product_name,brands,image_front_small_url`,
                 {
                     headers: {
                         Accept: 'application/json',
@@ -49,17 +51,18 @@ export default function CameraScreen() {
             const result: OpenFoodFactsResponse = await response.json();
 
             if (result.status !== 'success' || !result.product) {
-                return { found: false, name: 'Produkt nicht gefunden', brand: '' };
+                return { found: false, name: 'Produkt nicht gefunden', brand: '', imageUrl: null };
             }
 
             return {
                 found: true,
                 name: result.product.product_name || 'Name unbekannt',
                 brand: result.product.brands || '',
+                imageUrl: result.product.image_front_small_url || null,
             };
         }
         catch {
-            return { found: false, name: 'Produktdaten nicht verfügbar', brand: '' };
+            return { found: false, name: 'Produktdaten nicht verfügbar', brand: '', imageUrl: null };
         }
     }
 
@@ -76,6 +79,7 @@ export default function CameraScreen() {
                 barcode,
                 productName: productInfo.name,
                 brand: productInfo.brand,
+                imageUrl: productInfo.imageUrl,
                 scannedAt: Date.now(),
             });
             const acceptances = await requestBranchAcceptance(barcode, branches);
@@ -87,6 +91,7 @@ export default function CameraScreen() {
                     found: productInfo.found ? 'true' : 'false',
                     productName: productInfo.name,
                     brand: productInfo.brand,
+                    imageUrl: productInfo.imageUrl ?? '',
                     acceptances: JSON.stringify(acceptances),
                 },
             });
