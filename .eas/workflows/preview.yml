@@ -22,8 +22,6 @@ jobs:
     needs: [get_build]
     if: ${{ !needs.get_build.outputs.build_id }}
     type: build
-    env:
-      EAS_USE_CACHE: '1'
     params:
       platform: android
       profile: preview
