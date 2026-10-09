@@ -3,6 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@react-native-vector-icons/ionicons';
 import {
     parseBranchAcceptances,
     type AcceptanceStatus,
@@ -199,6 +200,7 @@ export default function ResultScreen() {
                         onPress={() => router.replace('/camera')}
                         style={styles.primaryButton}
                     >
+                        <Ionicons name="refresh-outline" size={18} color="#FFFFFF" />
                         <Text style={styles.primaryButtonText}>Noch einmal scannen</Text>
                     </Pressable>
 
@@ -207,6 +209,7 @@ export default function ResultScreen() {
                         onPress={() => router.replace('/')}
                         style={styles.secondaryButton}
                     >
+                        <Ionicons name="home-outline" size={18} color="#173B32" />
                         <Text style={styles.secondaryButtonText}>Zur Übersicht</Text>
                     </Pressable>
                 </View>
@@ -318,7 +321,10 @@ const styles = StyleSheet.create({
         marginTop: 24,
     },
     primaryButton: {
+        flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
         padding: 16,
         backgroundColor: '#173B32',
         borderRadius: 8,
@@ -329,7 +335,10 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     },
     secondaryButton: {
+        flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
         padding: 14,
     },
     secondaryButtonText: {

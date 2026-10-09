@@ -214,6 +214,7 @@ export default function ReportScreen() {
                         pressed && hasChanges && !isSaving && styles.pressed,
                     ]}
                 >
+                    <Ionicons name="save-outline" size={18} color="#FFFFFF" />
                     <Text style={styles.saveText}>
                         {isSaving ? 'Speichern ...' : 'Speichern'}
                     </Text>
@@ -342,8 +343,10 @@ const styles = StyleSheet.create({
     },
     saveButton: {
         minHeight: 56,
+        flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
+        gap: 8,
         backgroundColor: '#173B32',
         borderRadius: 8,
     },

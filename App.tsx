@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
+import { Ionicons } from '@react-native-vector-icons/ionicons';
 import { loadAcceptance } from './lib/acceptance-cache';
 import { useNearbyBranches } from './lib/nearby-branches';
 import { readScanHistory, type ScanHistoryItem } from './lib/scan-history';
@@ -46,8 +47,11 @@ export default function App() {
               pressed && styles.pressed,
             ]}
           >
-            <Text style={styles.scanTitle}>Flasche scannen</Text>
-            <Text style={styles.scanHint}>Mit der Kamera erfassen</Text>
+            <Ionicons name="barcode-outline" size={28} color="#FFFFFF" />
+            <View style={styles.buttonText}>
+              <Text style={styles.scanTitle}>Flasche scannen</Text>
+              <Text style={styles.scanHint}>Mit der Kamera erfassen</Text>
+            </View>
           </Pressable>
 
           <Pressable
@@ -60,8 +64,11 @@ export default function App() {
               pressed && styles.pressed,
             ]}
           >
-            <Text style={styles.uploadTitle}>Foto hochladen</Text>
-            <Text style={styles.uploadHint}>Bild aus der Galerie wählen</Text>
+            <Ionicons name="image-outline" size={28} color="#173B32" />
+            <View style={styles.buttonText}>
+              <Text style={styles.uploadTitle}>Foto hochladen</Text>
+              <Text style={styles.uploadHint}>Bild aus der Galerie wählen</Text>
+            </View>
           </Pressable>
         </View>
 
@@ -139,8 +146,14 @@ const styles = StyleSheet.create({
   actions: {
     gap: 12,
   },
+  buttonText: {
+    flex: 1,
+  },
   scanButton: {
     minHeight: 88,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
     justifyContent: 'center',
     paddingHorizontal: 20,
     backgroundColor: '#173B32',
@@ -158,6 +171,9 @@ const styles = StyleSheet.create({
   },
   uploadButton: {
     minHeight: 76,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
     justifyContent: 'center',
     paddingHorizontal: 20,
     backgroundColor: '#FFFFFF',
