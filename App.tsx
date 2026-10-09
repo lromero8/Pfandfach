@@ -1,10 +1,18 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
+import { readScanHistory, type ScanHistoryItem } from './lib/scan-history';
 
 export default function App() {
   const [message, setMessage] = useState('');
+  const [history, setHistory] = useState<ScanHistoryItem[]>([]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void readScanHistory().then(setHistory);
+    }, []),
+  );
 
   return (
     <View style={styles.screen}>
@@ -47,6 +55,40 @@ export default function App() {
             <Text style={styles.uploadHint}>Bild aus der Galerie wählen</Text>
           </Pressable>
         </View>
+
+        {history.length > 0 ? (
+          <View style={styles.history}>
+            <Text style={styles.historyTitle}>Zuletzt gescannt</Text>
+            {history.map((item) => (
+              <Pressable
+                key={item.barcode}
+                accessibilityRole="button"
+                onPress={() =>
+                  router.push({
+                    pathname: '/report',
+                    params: {
+                      barcode: item.barcode,
+                      productName: item.productName,
+                      brand: item.brand,
+                    },
+                  })
+                }
+                style={({ pressed }) => [
+                  styles.historyItem,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <View style={styles.historyText}>
+                  <Text style={styles.historyName}>{item.productName}</Text>
+                  {item.brand ? (
+                    <Text style={styles.historyBrand}>{item.brand}</Text>
+                  ) : null}
+                </View>
+                <Text style={styles.historyAction}>Melden</Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
 
         {message ? <Text style={styles.message}>{message}</Text> : null}
       </ScrollView>
@@ -123,6 +165,42 @@ const styles = StyleSheet.create({
     color: '#66736C',
     fontSize: 14,
     marginTop: 4,
+  },
+  history: {
+    marginTop: 32,
+  },
+  historyTitle: {
+    color: '#173B32',
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 10,
+  },
+  historyItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  historyText: {
+    flex: 1,
+  },
+  historyName: {
+    color: '#173B32',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  historyBrand: {
+    color: '#66736C',
+    fontSize: 13,
+    marginTop: 2,
+  },
+  historyAction: {
+    color: '#31594B',
+    fontSize: 14,
+    fontWeight: '700',
   },
   pressed: {
     opacity: 0.72,

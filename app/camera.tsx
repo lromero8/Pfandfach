@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRef, useState } from 'react';
 import { useNearbyBranches } from '../lib/nearby-branches';
 import { requestBranchAcceptance } from '../lib/branch-acceptance';
+import { addScanToHistory } from '../lib/scan-history';
 
 type OpenFoodFactsResponse = {
     status: string;
@@ -70,6 +71,12 @@ export default function CameraScreen() {
                 fetchProduct(barcode),
                 waitForBranches(),
             ]);
+            void addScanToHistory({
+                barcode,
+                productName: productInfo.name,
+                brand: productInfo.brand,
+                scannedAt: Date.now(),
+            });
             const acceptances = await requestBranchAcceptance(barcode, branches);
 
             router.replace({
