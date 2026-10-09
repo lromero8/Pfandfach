@@ -1,8 +1,9 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ComponentProps } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@react-native-vector-icons/ionicons';
 import { forgetAcceptance, loadAcceptance } from '../lib/acceptance-cache';
 import { useNearbyBranches } from '../lib/nearby-branches';
 import type { AcceptanceStatus } from '../lib/branch-acceptance';
@@ -20,9 +21,11 @@ function outcomeFromAcceptance(acceptance: AcceptanceStatus | undefined): Report
     return null;
 }
 
-const answerOptions: { outcome: ReportOutcome; label: string }[] = [
-    { outcome: 'accepted', label: 'Ja' },
-    { outcome: 'rejected', label: 'Nein' },
+type IconName = ComponentProps<typeof Ionicons>['name'];
+
+const answerOptions: { outcome: ReportOutcome; label: string; icon: IconName }[] = [
+    { outcome: 'accepted', label: 'Ja', icon: 'checkmark' },
+    { outcome: 'rejected', label: 'Nein', icon: 'close' },
 ];
 
 const reportedLabels: Record<ReportOutcome, string> = {
@@ -182,6 +185,11 @@ export default function ReportScreen() {
                                                 pressed && !disabled && styles.pressed,
                                             ]}
                                         >
+                                            <Ionicons
+                                                name={option.icon}
+                                                size={18}
+                                                color={selected ? '#FFFFFF' : '#173B32'}
+                                            />
                                             <Text style={[styles.answerText, selected && styles.answerTextSelected]}>
                                                 {option.label}
                                             </Text>
@@ -282,6 +290,8 @@ const styles = StyleSheet.create({
     },
     answerButton: {
         flex: 1,
+        flexDirection: 'row',
+        gap: 6,
         minHeight: 44,
         alignItems: 'center',
         justifyContent: 'center',
