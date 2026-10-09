@@ -33,6 +33,26 @@ function bestPriority(items: BranchAcceptance[]): number {
     return Math.min(...items.map((branch) => statusPriority[branch.acceptance]));
 }
 
+const statuses: AcceptanceStatus[] = ['likely_accepted', 'likely_rejected', 'unknown'];
+
+const summaryLabels: Record<AcceptanceStatus, string> = {
+    likely_accepted: 'angenommen',
+    likely_rejected: 'abgelehnt',
+    unknown: 'unklar',
+};
+
+const statusColors: Record<AcceptanceStatus, string> = {
+    likely_accepted: '#2E7D4F',
+    likely_rejected: '#B3261E',
+    unknown: '#5D6C64',
+};
+
+function summarize(items: BranchAcceptance[]) {
+    return statuses
+        .map((status) => ({ status, count: items.filter((branch) => branch.acceptance === status).length }))
+        .filter(({ count }) => count > 0);
+}
+
 const retailerLabels: Record<string, string | undefined> = {
     aldi: 'Aldi',
     edeka: 'Edeka',
@@ -133,9 +153,18 @@ export default function ResultScreen() {
                                     onPress={() => toggleChain(group.retailer)}
                                     style={styles.chainHeader}
                                 >
-                                    <Text style={styles.chainName}>
-                                        {retailerLabels[group.retailer] ?? group.retailer} ({group.items.length})
-                                    </Text>
+                                    <View style={styles.chainHeaderText}>
+                                        <Text style={styles.chainName}>
+                                            {retailerLabels[group.retailer] ?? group.retailer}
+                                        </Text>
+                                        <Text style={styles.chainSummary}>
+                                            {summarize(group.items).map((part, index) => (
+                                                <Text key={part.status} style={{ color: statusColors[part.status] }}>
+                                                    {index > 0 ? ' · ' : ''}{part.count} {summaryLabels[part.status]}
+                                                </Text>
+                                            ))}
+                                        </Text>
+                                    </View>
                                     <Text style={styles.chainName}>{isOpen ? '▾' : '▸'}</Text>
                                 </Pressable>
 
@@ -148,7 +177,7 @@ export default function ResultScreen() {
                                                     {branch.address ?? 'Adresse unbekannt'}
                                                 </Text>
                                             </View>
-                                            <Text style={styles.branchAcceptance}>
+                                            <Text style={[styles.branchAcceptance, { color: statusColors[branch.acceptance] }]}>
                                                 {acceptanceLabels[branch.acceptance]}
                                             </Text>
                                         </View>
@@ -242,11 +271,19 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingVertical: 8,
     },
+    chainHeaderText: {
+        flex: 1,
+        gap: 2,
+    },
     chainName: {
         color: '#31594B',
         fontSize: 14,
         fontWeight: '800',
         textTransform: 'uppercase',
+    },
+    chainSummary: {
+        fontSize: 14,
+        fontWeight: '600',
     },
     branchRow: {
         flexDirection: 'row',
