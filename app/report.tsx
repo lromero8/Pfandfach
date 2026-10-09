@@ -5,12 +5,30 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { forgetAcceptance, loadAcceptance } from '../lib/acceptance-cache';
 import { useNearbyBranches } from '../lib/nearby-branches';
-import { submitAcceptedReport } from '../lib/return-reports';
+import type { AcceptanceStatus } from '../lib/branch-acceptance';
+import { submitReport, type ReportOutcome } from '../lib/return-reports';
 import type { Supermarket } from '../lib/supermarkets';
 
 function branchKey(branch: Supermarket): string {
     return `${branch.type}/${branch.id}`;
 }
+
+function outcomeFromAcceptance(acceptance: AcceptanceStatus | undefined): ReportOutcome | null {
+    if (acceptance === 'likely_accepted') return 'accepted';
+    if (acceptance === 'likely_rejected') return 'rejected';
+
+    return null;
+}
+
+const answerOptions: { outcome: ReportOutcome; label: string }[] = [
+    { outcome: 'accepted', label: 'Ja' },
+    { outcome: 'rejected', label: 'Nein' },
+];
+
+const reportedLabels: Record<ReportOutcome, string> = {
+    accepted: 'Gemeldet: angenommen',
+    rejected: 'Gemeldet: abgelehnt',
+};
 
 export default function ReportScreen() {
     const { barcode, productName, brand } = useLocalSearchParams<{
@@ -19,8 +37,8 @@ export default function ReportScreen() {
         brand: string;
     }>();
     const { status, branches, message } = useNearbyBranches();
-    const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => new Set());
-    const [reportedKeys, setReportedKeys] = useState<Set<string>>(() => new Set());
+    const [answers, setAnswers] = useState<Map<string, ReportOutcome>>(() => new Map());
+    const [savedAnswers, setSavedAnswers] = useState<Map<string, ReportOutcome>>(() => new Map());
     const [reportedError, setReportedError] = useState<string | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     const [saveError, setSaveError] = useState<string | null>(null);
@@ -34,12 +52,15 @@ export default function ReportScreen() {
             .then((acceptances) => {
                 if (cancelled) return;
 
-                const keys = branches
-                    .filter((_, index) => acceptances[index]?.acceptance === 'likely_accepted')
-                    .map(branchKey);
+                const saved = new Map<string, ReportOutcome>();
 
-                setReportedKeys(new Set(keys));
-                setSelectedKeys((current) => new Set([...current, ...keys]));
+                branches.forEach((branch, index) => {
+                    const outcome = outcomeFromAcceptance(acceptances[index]?.acceptance);
+
+                    if (outcome) saved.set(branchKey(branch), outcome);
+                });
+
+                setSavedAnswers(saved);
             })
             .catch(() => {
                 if (!cancelled) setReportedError('Bereits gemeldete Filialen konnten nicht geladen werden.');
@@ -50,37 +71,35 @@ export default function ReportScreen() {
         };
     }, [barcode, branches, status]);
 
-    function isNewSelection(branch: Supermarket): boolean {
+    function answerFor(branch: Supermarket): ReportOutcome | undefined {
         const key = branchKey(branch);
 
-        return selectedKeys.has(key) && !reportedKeys.has(key);
+        return answers.get(key) ?? savedAnswers.get(key);
     }
 
-    function toggleBranch(branch: Supermarket) {
+    function hasPendingChange(branch: Supermarket): boolean {
         const key = branchKey(branch);
+        const answer = answers.get(key);
 
-        setSelectedKeys((current) => {
-            const next = new Set(current);
+        return answer !== undefined && answer !== savedAnswers.get(key);
+    }
 
-            if (next.has(key)) {
-                next.delete(key);
-            }
-            else {
-                next.add(key);
-            }
-
-            return next;
-        });
+    function answerBranch(branch: Supermarket, outcome: ReportOutcome) {
+        setAnswers((current) => new Map(current).set(branchKey(branch), outcome));
     }
 
     async function saveReport() {
-        const selected = branches.filter(isNewSelection);
+        const pending = branches.flatMap((branch) => {
+            const outcome = answers.get(branchKey(branch));
+
+            return outcome !== undefined && hasPendingChange(branch) ? [{ branch, outcome }] : [];
+        });
 
         setIsSaving(true);
         setSaveError(null);
 
         try {
-            await Promise.all(selected.map((branch) => submitAcceptedReport(barcode, branch)));
+            await Promise.all(pending.map(({ branch, outcome }) => submitReport(barcode, branch, outcome)));
             forgetAcceptance(barcode);
             router.back();
         }
@@ -94,7 +113,7 @@ export default function ReportScreen() {
         }
     }
 
-    const hasSelection = branches.some(isNewSelection);
+    const hasChanges = branches.some(hasPendingChange);
 
     return (
         <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
@@ -111,7 +130,7 @@ export default function ReportScreen() {
             </View>
 
             <View style={styles.intro}>
-                <Text style={styles.title}>Wo wurde angenommen?</Text>
+                <Text style={styles.title}>Hat die Filiale angenommen?</Text>
                 <Text style={styles.subtitle}>{productName}</Text>
                 {brand ? <Text style={styles.brand}>{brand}</Text> : null}
             </View>
@@ -129,35 +148,48 @@ export default function ReportScreen() {
 
             <ScrollView contentContainerStyle={styles.list}>
                 {branches.map((branch) => {
-                    const reported = reportedKeys.has(branchKey(branch));
-                    const selected = selectedKeys.has(branchKey(branch));
-                    const disabled = branch.address === null || reported;
+                    const key = branchKey(branch);
+                    const answer = answerFor(branch);
+                    const saved = savedAnswers.get(key);
+                    const disabled = branch.address === null;
 
                     return (
-                        <Pressable
-                            key={branchKey(branch)}
-                            accessibilityRole="checkbox"
-                            accessibilityState={{ checked: selected, disabled }}
-                            disabled={disabled}
-                            onPress={() => toggleBranch(branch)}
-                            style={({ pressed }) => [
-                                styles.branchRow,
-                                selected && styles.branchRowSelected,
-                                branch.address === null && styles.branchRowDisabled,
-                                pressed && !disabled && styles.pressed,
-                            ]}
+                        <View
+                            key={key}
+                            style={[styles.branchRow, disabled && styles.branchRowDisabled]}
                         >
-                            <View style={[styles.checkbox, selected && styles.checkboxSelected]}>
-                                {selected ? <Text style={styles.checkmark}>✓</Text> : null}
-                            </View>
                             <View style={styles.branchText}>
                                 <Text style={styles.branchName}>{branch.name}</Text>
                                 <Text style={styles.branchAddress}>
                                     {branch.address ?? 'Adresse unbekannt'}
                                 </Text>
-                                {reported ? <Text style={styles.reportedHint}>Bereits gemeldet</Text> : null}
+                                {saved ? <Text style={styles.reportedHint}>{reportedLabels[saved]}</Text> : null}
                             </View>
-                        </Pressable>
+                            <View style={styles.answerRow}>
+                                {answerOptions.map((option) => {
+                                    const selected = answer === option.outcome;
+
+                                    return (
+                                        <Pressable
+                                            key={option.outcome}
+                                            accessibilityRole="button"
+                                            accessibilityState={{ selected, disabled }}
+                                            disabled={disabled}
+                                            onPress={() => answerBranch(branch, option.outcome)}
+                                            style={({ pressed }) => [
+                                                styles.answerButton,
+                                                selected && styles.answerButtonSelected,
+                                                pressed && !disabled && styles.pressed,
+                                            ]}
+                                        >
+                                            <Text style={[styles.answerText, selected && styles.answerTextSelected]}>
+                                                {option.label}
+                                            </Text>
+                                        </Pressable>
+                                    );
+                                })}
+                            </View>
+                        </View>
                     );
                 })}
             </ScrollView>
@@ -166,12 +198,12 @@ export default function ReportScreen() {
                 {saveError ? <Text style={styles.error}>{saveError}</Text> : null}
                 <Pressable
                     accessibilityRole="button"
-                    disabled={!hasSelection || isSaving}
+                    disabled={!hasChanges || isSaving}
                     onPress={() => void saveReport()}
                     style={({ pressed }) => [
                         styles.saveButton,
-                        (!hasSelection || isSaving) && styles.saveButtonDisabled,
-                        pressed && hasSelection && !isSaving && styles.pressed,
+                        (!hasChanges || isSaving) && styles.saveButtonDisabled,
+                        pressed && hasChanges && !isSaving && styles.pressed,
                     ]}
                 >
                     <Text style={styles.saveText}>
@@ -234,8 +266,6 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     branchRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
         gap: 12,
         padding: 14,
         backgroundColor: '#FFFFFF',
@@ -243,29 +273,34 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderRadius: 8,
     },
-    branchRowSelected: {
-        borderColor: '#173B32',
-    },
     branchRowDisabled: {
         opacity: 0.5,
     },
-    checkbox: {
-        width: 24,
-        height: 24,
-        borderRadius: 6,
-        borderWidth: 2,
-        borderColor: '#9AA79F',
+    answerRow: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    answerButton: {
+        flex: 1,
+        minHeight: 44,
         alignItems: 'center',
         justifyContent: 'center',
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#9AA79F',
+        backgroundColor: '#FFFFFF',
     },
-    checkboxSelected: {
+    answerButtonSelected: {
         backgroundColor: '#173B32',
         borderColor: '#173B32',
     },
-    checkmark: {
+    answerText: {
+        color: '#173B32',
+        fontSize: 15,
+        fontWeight: '700',
+    },
+    answerTextSelected: {
         color: '#FFFFFF',
-        fontSize: 14,
-        fontWeight: '800',
     },
     branchText: {
         flex: 1,

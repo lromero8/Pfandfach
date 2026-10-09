@@ -3,7 +3,9 @@ import type { Supermarket } from './supermarkets';
 
 export const RETURN_REPORTS_URL = 'https://pfandfach.vercel.app/api/return-reports';
 
-export async function submitAcceptedReport(barcode: string, branch: Supermarket): Promise<void> {
+export type ReportOutcome = 'accepted' | 'rejected';
+
+export async function submitReport(barcode: string, branch: Supermarket, outcome: ReportOutcome): Promise<void> {
     if (branch.address === null) {
         throw new Error('Für diese Filiale ist keine Adresse bekannt.');
     }
@@ -18,7 +20,7 @@ export async function submitAcceptedReport(barcode: string, branch: Supermarket)
             barcode,
             retailer: branch.chain,
             address: branch.address,
-            outcome: 'accepted',
+            outcome,
         }),
     });
 
